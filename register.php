@@ -15,7 +15,6 @@
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf.php';
-require_once __DIR__ . '/config/db.php';
 
 // Redirect authenticated users away from registration
 require_guest();
@@ -25,6 +24,7 @@ $name   = '';
 $email  = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/config/db.php';
     // 1. Validate CSRF Token
     validate_csrf();
 

@@ -18,7 +18,6 @@
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf.php';
-require_once __DIR__ . '/config/db.php';
 
 // Redirect authenticated users directly to dashboard
 require_guest();
@@ -27,6 +26,7 @@ $errors = [];
 $login_input = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/config/db.php';
     // 1. Validate CSRF Token
     validate_csrf();
 
