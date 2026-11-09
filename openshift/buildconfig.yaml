@@ -16,7 +16,7 @@ spec:
   source:
     type: Git
     git:
-      uri: https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/REPLACE_WITH_YOUR_REPO.git
+      uri: https://github.com/VYSAKHVINOD/student-task.git
       ref: main
   strategy:
     type: Docker
