@@ -23,9 +23,10 @@ if (session_status() === PHP_SESSION_NONE) {
         @session_save_path(sys_get_temp_dir());
     }
 
-    // Detect HTTPS status
+    // Detect HTTPS status (supports direct HTTPS and OpenShift / Reverse-Proxy Edge SSL termination)
     $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+        || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
 
     if (!headers_sent()) {
         // Apply strict security settings to session cookies

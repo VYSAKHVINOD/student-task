@@ -9,10 +9,11 @@
  * ====================================================================
  */
 
-$host = 'localhost';
-$port = '3306';
-$user = 'root';
-$pass = '';
+$host = getenv('DB_HOST') ?: 'localhost';
+$port = getenv('DB_PORT') ?: '3306';
+$user = getenv('DB_USER') ?: 'root';
+$pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
+$db_name = getenv('DB_NAME') ?: 'secure_task_manager';
 
 $is_cli = (php_sapi_name() === 'cli');
 
@@ -31,11 +32,19 @@ if (!$is_cli) {
 }
 
 try {
-    // 1. Connect to MySQL server (without selecting database yet)
-    $pdo = new PDO("mysql:host={$host};port={$port};charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
-    output_msg("Connected to MySQL server on {$host}:{$port} successfully.", "success");
+    // 1. Connect to MySQL server (global or scoped to database)
+    try {
+        $pdo = new PDO("mysql:host={$host};port={$port};charset=utf8mb4", $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        output_msg("Connected to MySQL server on {$host}:{$port} successfully.", "success");
+    } catch (PDOException $e) {
+        // Fallback: connect directly to target database if user has database-scoped credentials
+        $pdo = new PDO("mysql:host={$host};port={$port};dbname={$db_name};charset=utf8mb4", $user, $pass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        output_msg("Connected directly to database '{$db_name}' on {$host}:{$port}.", "success");
+    }
 
     // 2. Read database.sql file
     $sql_file = __DIR__ . '/database/database.sql';
@@ -45,12 +54,22 @@ try {
 
     $sql_content = file_get_contents($sql_file);
 
-    // 3. Execute the full database.sql schema
-    $pdo->exec($sql_content);
+    // 3. Execute database schema
+    try {
+        $pdo->exec($sql_content);
+    } catch (PDOException $e) {
+        // If CREATE DATABASE / USE fails due to scoped permissions on OpenShift/Cloud, strip them and run table scripts
+        $clean_sql = preg_replace('/CREATE DATABASE[^;]+;/i', '', $sql_content);
+        $clean_sql = preg_replace('/USE `?[a-zA-Z0-9_-]+`?;/i', '', $clean_sql);
+        $pdo->exec($clean_sql);
+    }
+
+    // Ensure database context is active
+    $pdo->exec("USE `{$db_name}`");
 
     // 4. Guarantee fresh valid password hashes for demo accounts
     $fresh_hash = password_hash('Password123!', PASSWORD_BCRYPT);
-    $fix_stmt = $pdo->prepare("UPDATE secure_task_manager.users SET password = :pwd WHERE email IN ('demo@securetask.local', 'admin@securetask.local')");
+    $fix_stmt = $pdo->prepare("UPDATE users SET password = :pwd WHERE email IN ('demo@securetask.local', 'admin@securetask.local')");
     $fix_stmt->execute([':pwd' => $fresh_hash]);
 
     output_msg("Database 'secure_task_manager' created successfully!", "success");

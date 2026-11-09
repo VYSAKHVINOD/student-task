@@ -1,0 +1,239 @@
+# ====================================================================
+# Red Hat OpenShift All-in-One Deployment Manifest
+# Application: Secure Task Management System (PHP + MySQL)
+# 
+# Usage:
+#   oc apply -f openshift/deploy-all.yaml
+# ====================================================================
+
+# 1. Database Credentials Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: task-manager-secrets
+  labels:
+    app: secure-task-manager
+type: Opaque
+stringData:
+  database-name: "secure_task_manager"
+  database-user: "task_user"
+  database-password: "Password123!"
+  database-root-password: "RootPassword123!"
+
+---
+# 2. MySQL Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: task-manager-mysql-pvc
+  labels:
+    app: secure-task-manager
+    component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# 3. MySQL Database Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-manager-mysql
+  labels:
+    app: secure-task-manager
+    component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secure-task-manager
+      component: database
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: secure-task-manager
+        component: database
+    spec:
+      containers:
+        - name: mysql
+          image: registry.redhat.io/rhel8/mysql-80:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-name
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-password
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-root-password
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: task-manager-mysql-pvc
+
+---
+# 4. MySQL Cluster Internal Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-manager-mysql
+  labels:
+    app: secure-task-manager
+    component: database
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+      name: mysql
+  selector:
+    app: secure-task-manager
+    component: database
+
+---
+# 5. PHP Web Application Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-task-manager
+  labels:
+    app: secure-task-manager
+    component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secure-task-manager
+      component: web
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: secure-task-manager
+        component: web
+    spec:
+      containers:
+        - name: web
+          image: secure-task-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: DB_HOST
+              value: "task-manager-mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-name
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-user
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: task-manager-secrets
+                  key: database-password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /index.php
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+
+---
+# 6. PHP Web Application Internal Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-task-manager
+  labels:
+    app: secure-task-manager
+    component: web
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+  selector:
+    app: secure-task-manager
+    component: web
+
+---
+# 7. OpenShift Route (Public HTTPS Access)
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: secure-task-manager
+  labels:
+    app: secure-task-manager
+spec:
+  to:
+    kind: Service
+    name: secure-task-manager
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+

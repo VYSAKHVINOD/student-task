@@ -1,0 +1,46 @@
+# ====================================================================
+# Red Hat OpenShift Automated Continuous Deployment (CD) Pipeline
+# To enable: Rename to .github/workflows/openshift-deploy.yml
+# 
+# Requires GitHub Repository Secrets:
+#   OPENSHIFT_SERVER : e.g., https://api.cluster.com:6443
+#   OPENSHIFT_TOKEN  : ServiceAccount or user token with deployment permissions
+#   OPENSHIFT_NAMESPACE : e.g., task-manager
+# ====================================================================
+
+name: Deploy to Red Hat OpenShift
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy-to-openshift:
+    name: Build & Deploy to OpenShift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Red Hat OpenShift
+        uses: redhat-actions/oc-login@v1
+        with:
+          openshift_server_url: ${{ secrets.OPENSHIFT_SERVER }}
+          openshift_token: ${{ secrets.OPENSHIFT_TOKEN }}
+          insecure_skip_tls_verify: false
+          namespace: ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      - name: Apply OpenShift Configuration Manifests
+        run: |
+          echo "Applying OpenShift Secrets and Database..."
+          oc apply -f openshift/secret.yaml
+          oc apply -f openshift/mysql.yaml
+          
+          echo "Triggering OpenShift BuildConfig or updating deployment..."
+          oc apply -f openshift/deploy-all.yaml
+          
+          echo "Checking rollout status..."
+          oc rollout status deployment/secure-task-manager --timeout=3m
+

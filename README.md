@@ -30,6 +30,7 @@ An academic startup web application designed to demonstrate the real-world conve
 16. [GitHub Integration Instructions](#16-github-integration-instructions)
 17. [CI/CD Pipeline Explanation](#17-cicd-pipeline-explanation)
 18. [Future Cloud Deployment Possibilities](#18-future-cloud-deployment-possibilities)
+19. [Red Hat OpenShift Cloud Deployment](#19-red-hat-openshift-cloud-deployment)
 
 ---
 
@@ -383,6 +384,27 @@ While the application is configured to run smoothly in local XAMPP environments,
    - **Secrets Management:** Store production database credentials securely in **AWS Secrets Manager** or **AWS Systems Manager Parameter Store**.
 3. **Automated Continuous Deployment (CD):**
    - Extend the existing `.github/workflows/ci.yml` pipeline with automated deployment steps that push Docker images to Amazon ECR and deploy them to cloud infrastructure upon successful CI testing.
+
+---
+
+## 19. Red Hat OpenShift Cloud Deployment
+
+The repository includes production-ready Red Hat OpenShift manifests and an OpenShift Security Context Constraint (SCC) compliant `Dockerfile`.
+
+### Quick OpenShift Deployment:
+```bash
+# 1. Create a project
+oc new-project task-manager
+
+# 2. Deploy MySQL and Secrets
+oc apply -f openshift/secret.yaml
+oc apply -f openshift/mysql.yaml
+
+# 3. Deploy PHP application and Route (or apply all-in-one manifest)
+oc apply -f openshift/deploy-all.yaml
+```
+
+For complete step-by-step instructions (OpenShift Web Console GUI, Source-to-Image / S2I, database migration from XAMPP phpMyAdmin, and SCC permissions), see **[openshift/README.md](openshift/README.md)**.
 
 ---
 

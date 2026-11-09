@@ -1,0 +1,32 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: secure-task-manager
+  labels:
+    app: secure-task-manager
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: secure-task-manager
+  labels:
+    app: secure-task-manager
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/REPLACE_WITH_YOUR_REPO.git
+      ref: main
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: secure-task-manager:latest
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+

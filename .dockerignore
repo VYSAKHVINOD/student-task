@@ -1,0 +1,9 @@
+.git
+.github
+tests
+openshift
+*.md
+config/config.local.php
+.env
+.env.*
+
